@@ -1,22 +1,680 @@
-<html lang="en">
+<!DOCTYPE html>
+<html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Signabroam World Map</title>
-    <meta property="og:title" content="Signabroam World Map">
-    <meta property="og:description" content="See the Signabroam world map for all radio related things. - ULF, VLF, LF, MF, Shortwave (HF), VHF, UHF.">
-    <meta property="og:type" content="website/map">
+    <title>Signabroam Radio Map</title>
+    <meta name="og:title" content="Signabroam Radio Map">
+    <meta name="og:description" content="A map of worldwide radio receivers">
+    <meta name="og:image" content="images/marker-icon-2x.png">
+    <meta name="og:url" content="https://rx.signabroam.ovh">
+
+    <link rel="icon" type="image/png" sizes="32x32" href="images/marker-icon-2x.png">
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="leaflet.css">
+    
     <style>
-        iframe {
-    width: 100%;
-    height: 100vh;
-    left: 0px;
-    top: 0px;
-    position: absolute;
-    }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1a1a1a;
+        }
+
+        #map {
+            height: 100vh;
+            width: 100vw;
+            z-index: 0;
+        }
+
+        /* Filter Panel */
+        .filter-panel {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            z-index: 1000;
+            max-width: 280px;
+            font-size: 14px;
+        }
+
+        .filter-panel h3 {
+            margin-bottom: 15px;
+            color: #333;
+            font-size: 16px;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 8px;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .filter-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            padding: 6px 8px;
+            border-radius: 6px;
+        }
+
+        .filter-item:hover {
+            background: rgba(0, 123, 255, 0.1);
+        }
+
+        .filter-item input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            accent-color: #007bff;
+        }
+
+        .filter-item label {
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex: 1;
+            user-select: none;
+        }
+
+        .color-indicator {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .filter-stats {
+            margin-top: 12px;
+            padding: 10px;
+            background: #f5f5f5;
+            border-radius: 6px;
+            font-size: 12px;
+            color: #666;
+            text-align: center;
+        }
+
+        .control-buttons {
+            margin-top: 12px;
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 8px 12px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+
+        .btn-all {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-all:hover {
+            background: #218838;
+        }
+
+        .btn-none {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-none:hover {
+            background: #c82333;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .filter-panel {
+                max-width: 250px;
+                padding: 15px;
+                bottom: 10px;
+                left: 10px;
+            }
+
+            .filter-panel h3 {
+                font-size: 14px;
+            }
+
+            .filter-item {
+                font-size: 12px;
+            }
+        }
+
+        /* Loading indicator */
+        .loading {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 123, 255, 0.9);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            z-index: 999;
+            font-size: 14px;
+        }
+
+        .dot {
+            animation: blink 1.4s infinite;
+        }
+
+        .dot:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .dot:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes blink {
+            0%, 60%, 100% { opacity: 0.3; }
+            30% { opacity: 1; }
+        }
+
+        /* Top info */
+        .info-header {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 12px 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+            z-index: 999;
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        /* Leaflet layers control */
+        .leaflet-control-layers {
+            background: rgba(255, 255, 255, 0.95) !important;
+            border-radius: 8px !important;
+        }
+
+        .leaflet-control-layers-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
     </style>
 </head>
 <body>
-    <iframe src="http://alisdr.signabroam.ovh/map/map" frameborder="0"></iframe>
+    <div id="map"></div>
+
+    <div id="loading" class="loading" style="display:none;">
+        Loading receivers<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span>
+    </div>
+
+    <div class="filter-panel">
+        <h3>Global SDR Filter</h3>
+        <div class="filter-group" id="filterGroup"></div>
+        <div class="filter-stats">
+            <div>Total: <span id="totalMarkers">0</span> receivers</div>
+            <div>Visible: <span id="visibleMarkers">0</span></div>
+        </div>
+        <div class="control-buttons">
+            <button class="btn btn-all" id="selectAllBtn">All</button>
+            <button class="btn btn-none" id="selectNoneBtn">None</button>
+        </div>
+    </div> 
+
+    <!-- Leaflet -->
+    <script src="leaflet.js"></script>
+    <script src="https://unpkg.com/@joergdietrich/leaflet.terminator"></script>
+    <script src="https://unpkg.com/leaflet-omnivore/leaflet-omnivore.min.js"></script>
+    <script src="https://unpkg.com/leaflet-providers@latest/leaflet-providers.js"></script>
+    <script src="Leaflet.LocationShare.js"></script>
+
+    <!-- Unified Map Script -->
+    <script>
+        // ====== Initialize Map ======
+        const map = L.map('map').setView([20, 0], 2);
+        const osmLayer = L.tileLayer.provider('OpenStreetMap.Mapnik');
+        osmLayer.addTo(map);
+
+        // Base maps for layer control
+        const baseMaps = {
+            "OpenStreetMap": osmLayer,
+            "CartoDB Light": L.tileLayer.provider('CartoDB.Positron'),
+            "CartoDB Dark": L.tileLayer.provider('CartoDB.Voyager'),
+            "Satellite": L.tileLayer.provider('Esri.WorldImagery')
+        };
+
+        // ====== Marker Management ======
+        const iconMappings = {
+            'KiwiSDR': 'images/kiwi.png',
+            'Airspy': 'https://airspy.com/wp-content/uploads/2015/01/AirspyLogoWithoutBG.png',
+            'WebSDR': 'images/veronlogo100b.gif',
+            'OpenWebRX': '',  // Uses custom icons per receiver
+            'PhantomSDR': 'https://secure.gravatar.com/avatar/b3a433ed0710b05e0b66bb27496985f363eb52b92fdd9e28227660ae7fe8ed23?s=125&d=mm&r=g',
+            'Web888': 'images/web-888-51x60.png'
+        };
+
+        const receiversByType = {
+            'KiwiSDR': { color: '#FF6B6B', markers: [], data: L.layerGroup() },
+            'Airspy': { color: '#4ECDC4', markers: [], data: L.layerGroup() },
+            'WebSDR': { color: '#45B7D1', markers: [], data: L.layerGroup() },
+            'OpenWebRX': { color: '#FFA07A', markers: [], data: L.layerGroup() },
+            'PhantomSDR': { color: '#98D8C8', markers: [], data: L.layerGroup() },
+            'Web888': { color: '#F7DC6F', markers: [], data: L.layerGroup() }
+        };
+
+        // Add layer groups to map
+        Object.values(receiversByType).forEach(type => type.data.addTo(map));
+
+        // ====== UI Setup ======
+        function setupFilterUI() {
+            const filterGroup = document.getElementById('filterGroup');
+            
+            Object.entries(receiversByType).forEach(([type, config]) => {
+                const item = document.createElement('div');
+                item.className = 'filter-item';
+                
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.id = `filter-${type}`;
+                checkbox.checked = true;
+                checkbox.dataset.type = type;
+                
+                const label = document.createElement('label');
+                label.htmlFor = `filter-${type}`;
+                
+                const icon = document.createElement('img');
+                icon.src = iconMappings[type];
+                icon.style.width = '24px';
+                icon.style.height = '24px';
+                icon.style.marginRight = '6px';
+                icon.onerror = function() {
+                    // Si l'icone échoue, afficher un point de couleur
+                    this.style.display = 'none';
+                    const fallbackDot = document.createElement('span');
+                    fallbackDot.className = 'color-indicator';
+                    fallbackDot.style.backgroundColor = config.color;
+                    label.insertBefore(fallbackDot, label.firstChild);
+                };
+                
+                const text = document.createElement('span');
+                text.textContent = type;
+                
+                label.appendChild(icon);
+                label.appendChild(text);
+                
+                item.appendChild(checkbox);
+                item.appendChild(label);
+                
+                filterGroup.appendChild(item);
+                
+                checkbox.addEventListener('change', () => {
+                    toggleType(type, checkbox.checked);
+                });
+            });
+
+            document.getElementById('selectAllBtn').addEventListener('click', () => {
+                document.querySelectorAll('#filterGroup input[type="checkbox"]').forEach(cb => {
+                    cb.checked = true;
+                    if (cb.dataset.type) toggleType(cb.dataset.type, true);
+                });
+            });
+
+            document.getElementById('selectNoneBtn').addEventListener('click', () => {
+                document.querySelectorAll('#filterGroup input[type="checkbox"]').forEach(cb => {
+                    cb.checked = false;
+                    if (cb.dataset.type) toggleType(cb.dataset.type, false);
+                });
+            });
+        }
+
+        function toggleType(type, visibility) {
+            if (!receiversByType[type]) return;
+            
+            if (visibility) {
+                map.addLayer(receiversByType[type].data);
+            } else {
+                map.removeLayer(receiversByType[type].data);
+            }
+            
+            // Synchronise la checkbox du panel
+            const checkbox = document.getElementById(`filter-${type}`);
+            if (checkbox) {
+                checkbox.checked = visibility;
+            }
+            
+            updateStats();
+        }
+
+        function updateStats() {
+            let totalMarkers = 0;
+            let visibleMarkers = 0;
+
+            Object.values(receiversByType).forEach(config => {
+                totalMarkers += config.markers.length;
+                try {
+                    if (map.hasLayer(config.data)) {
+                        visibleMarkers += config.markers.length;
+                    }
+                } catch (e) {
+                    // Ignore errors if layer is not added yet
+                }
+            });
+
+            document.getElementById('totalMarkers').textContent = totalMarkers;
+            document.getElementById('visibleMarkers').textContent = visibleMarkers;
+        }
+
+        // ====== Data Loaders ======
+        async function loadKiwiSDR() {
+            try {
+                const response = await fetch("https://api.codetabs.com/v1/proxy/?quest=http://kiwisdr.com/.public/");
+                const html = await response.text();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, "text/html");
+                const entries = doc.querySelectorAll(".cl-entry");
+
+                entries.forEach(entry => {
+                    const htmlBlock = entry.innerHTML;
+                    const gps = /<!--\s*gps=\(([^,]+),\s*([^)]+)\)\s*-->/.exec(htmlBlock);
+                    const name = /<!--\s*name=([^\n\r]+?)\s*-->/.exec(htmlBlock);
+                    const sdr_hw = /<!--\s*sdr_hw=([^\n\r]+?)\s*-->/.exec(htmlBlock);
+                    const users = /<!--\s*users=(\d+)\s*-->/.exec(htmlBlock);
+                    const users_max = /<!--\s*users_max=(\d+)\s*-->/.exec(htmlBlock);
+                    const loc = /<!--\s*loc=([^\n\r]+?)\s*-->/.exec(htmlBlock);
+                    const antenna = /<!--\s*antenna=([^\n\r]+?)\s*-->/.exec(htmlBlock);
+
+                    const lat = gps ? parseFloat(gps[1]) : null;
+                    const lng = gps ? parseFloat(gps[2]) : null;
+                    const urlEl = entry.querySelector("a[href^='http']");
+                    const link = urlEl ? urlEl.getAttribute("href") : null;
+                    const imgEl = entry.querySelector("img.cl-avatar");
+                    const iconUrl = imgEl ? imgEl.getAttribute("src") : null;
+
+                    if (lat && lng && name && iconUrl) {
+                        const customIcon = L.icon({
+                            iconUrl: 'images/kiwi.png',
+                            iconSize: [32, 32],
+                            iconAnchor: [16, 16],
+                            popupAnchor: [0, -16],
+                        });
+
+                        const popupContent = `
+                            <strong><a href="${link}" target="_blank">${name[1]}</a></strong><br>
+                            <em>${loc ? loc[1] : "?"}</em><br>
+                            Material: ${sdr_hw ? sdr_hw[1] : "?"}<br>
+                            Users: ${users ? users[1] : "?"}/${users_max ? users_max[1] : "?"}<br>
+                            Version: ${antenna ? antenna[1] : "?"}
+                        `;
+
+                        const marker = L.marker([lat, lng], { icon: customIcon })
+                            .bindPopup(popupContent)
+                            .addTo(receiversByType['KiwiSDR'].data);
+                        
+                        receiversByType['KiwiSDR'].markers.push(marker);
+                    }
+                });
+            } catch (err) {
+                console.error("KiwiSDR Error:", err);
+            }
+        }
+
+        async function loadAirspy() {
+            try {
+                const response = await fetch("https://api.codetabs.com/v1/proxy/?quest=https://airspy.com/directory/status.json");
+                const data = await response.json();
+                const receiversData = data.servers || [];
+
+                receiversData.forEach(server => {
+                    if (!server.antennaLocation || !server.antennaLocation.lat || !server.antennaLocation.long) return;
+
+                    const lat = parseFloat(server.antennaLocation.lat);
+                    const lon = parseFloat(server.antennaLocation.long);
+
+                    let iconColor = "gray";
+                    if (server.online) {
+                        iconColor = server.currentClientCount >= server.maxClients ? "orange" : "green";
+                    }
+
+                    const customIcon = L.divIcon({
+                        className: "custom-marker",
+                        html: `<div style="width:14px;height:14px;background-color:${iconColor};border:2px solid white;border-radius:50%;box-shadow:0 0 3px rgba(0,0,0,0.5);"></div>`,
+                        iconSize: [14, 14],
+                        iconAnchor: [7, 7],
+                        popupAnchor: [0, -10],
+                    });
+
+                    const popupHTML = `
+                        <strong>${server.deviceType || "Unknown"}</strong><br>
+                        Owner: ${server.ownerName || "anonymous"}<br>
+                        IP: ${server.streamingHost}:${server.streamingPort}<br>
+                        Status: ${server.online ? (server.currentClientCount >= server.maxClients ? "🟠 Full" : "🟢 Online") : "🔴 Offline"}<br>
+                        Clients: ${server.currentClientCount} / ${server.maxClients}<br>
+                        Frequency: ${(server.currentCenterFrequency / 1e6).toFixed(2)} MHz
+                    `;
+
+                    const marker = L.marker([lat, lon], { icon: customIcon })
+                        .bindPopup(popupHTML)
+                        .addTo(receiversByType['Airspy'].data);
+                    
+                    receiversByType['Airspy'].markers.push(marker);
+                });
+            } catch (err) {
+                console.error("Airspy Error:", err);
+            }
+        }
+
+        async function loadWebSDR() {
+            try {
+                const response = await fetch("https://api.codetabs.com/v1/proxy/?quest=https://www.receiverbook.de/map?type=websdr&band=");
+                const html = await response.text();
+                const match = html.match(/var receivers = (\[.*?\]);/s);
+                if (!match) return;
+
+                const receiversData = JSON.parse(match[1]);
+                const iconUrl = 'https://www.hyperplane.org/wsdr/imgs/amateur_radio_sym.svg';
+
+                receiversData.forEach(site => {
+                    const [lon, lat] = site.location.coordinates;
+
+                    site.receivers.forEach(receiver => {
+                        const customIcon = L.icon({
+                            iconUrl: 'images/veronlogo100b.gif',
+                            iconSize: [32, 32],
+                            iconAnchor: [16, 16],
+                            popupAnchor: [0, -16],
+                        });
+
+                        const marker = L.marker([lat, lon], { icon: customIcon })
+                            .bindPopup(`<strong>${site.label}</strong><br><a href="${receiver.url}" target="_blank">${receiver.label}</a><br>Type: ${receiver.type} ${receiver.version}`)
+                            .addTo(receiversByType['WebSDR'].data);
+                        
+                        receiversByType['WebSDR'].markers.push(marker);
+                    });
+                });
+            } catch (err) {
+                console.error("WebSDR Error:", err);
+            }
+        }
+
+        async function loadOpenWebRX() {
+            try {
+                const response = await fetch("https://api.codetabs.com/v1/proxy/?quest=https://www.receiverbook.de/map?type=openwebrx&band=");
+                const html = await response.text();
+                const match = html.match(/var receivers = (\[.*?\]);/s);
+                if (!match) return;
+
+                const receiversData = JSON.parse(match[1]);
+
+                receiversData.forEach(site => {
+                    const [lon, lat] = site.location.coordinates;
+
+                    site.receivers.forEach(receiver => {
+                        const iconUrl = receiver.url.replace(/\/+$/, '') + '/static/gfx/openwebrx-avatar.png';
+                        
+                        const customIcon = L.icon({
+                            iconUrl,
+                            iconSize: [32, 32],
+                            iconAnchor: [16, 16],
+                            popupAnchor: [0, -16],
+                        });
+
+                        const marker = L.marker([lat, lon], { icon: customIcon })
+                            .bindPopup(`<strong>${site.label}</strong><br><a href="${receiver.url}" target="_blank">${receiver.label}</a><br>Type: ${receiver.type}`)
+                            .addTo(receiversByType['OpenWebRX'].data);
+                        
+                        receiversByType['OpenWebRX'].markers.push(marker);
+                    });
+                });
+            } catch (err) {
+                console.error("OpenWebRX Error:", err);
+            }
+        }
+
+        async function loadPhantomSDR() {
+            try {
+                const response = await fetch("https://api.codetabs.com/v1/proxy/?quest=https://sdr-list.xyz/api/get_websdrs");
+                const data = await response.json();
+
+                function maidenheadToLatLon(locator) {
+                    if (!locator || locator.length < 4) return null;
+                    locator = locator.toUpperCase();
+                    let lon = (locator.charCodeAt(0) - 65) * 20 - 180;
+                    let lat = (locator.charCodeAt(1) - 65) * 10 - 90;
+                    lon += parseInt(locator.charAt(2)) * 2;
+                    lat += parseInt(locator.charAt(3)) * 1;
+                    if (locator.length >= 6) {
+                        lon += (locator.charCodeAt(4) - 65) * 5 / 60;
+                        lat += (locator.charCodeAt(5) - 65) * 2.5 / 60;
+                    }
+                    lon += 1;
+                    lat += 0.5;
+                    return [lat, lon];
+                }
+
+                data.forEach(device => {
+                    const latlon = maidenheadToLatLon(device.grid_locator);
+                    if (!latlon) return;
+
+                    const [lat, lon] = latlon;
+                    const customIcon = L.icon({
+                        iconUrl: 'https://secure.gravatar.com/avatar/b3a433ed0710b05e0b66bb27496985f363eb52b92fdd9e28227660ae7fe8ed23?s=125&d=mm&r=g',
+                        iconSize: [32, 32],
+                        iconAnchor: [16, 16],
+                        popupAnchor: [0, -16],
+                    });
+
+                    const marker = L.marker([lat, lon], { icon: customIcon })
+                        .bindPopup(`<strong>${device.name}</strong><br><a href="${device.url}" target="_blank">${device.url}</a><br>Grid: ${device.grid_locator}`)
+                        .addTo(receiversByType['PhantomSDR'].data);
+                    
+                    receiversByType['PhantomSDR'].markers.push(marker);
+                });
+            } catch (err) {
+                console.error("PhantomSDR Error:", err);
+            }
+        }
+
+        async function loadWeb888() {
+            try {
+                const response = await fetch("https://api.codetabs.com/v1/proxy/?quest=https://www.rx-888.com/api/devices");
+                const data = await response.json();
+
+                data.devices.forEach(device => {
+                    const gpsMatch = device.gps.match(/\(([-\d.]+),\s*([-\d.]+)\)/);
+                    if (!gpsMatch) return;
+
+                    const lat = parseFloat(gpsMatch[1]);
+                    const lon = parseFloat(gpsMatch[2]);
+
+                    const customIcon = L.icon({
+                        iconUrl: 'images/web-888-51x60.png',
+                        iconSize: [32, 40],
+                        iconAnchor: [16, 32],
+                        popupAnchor: [0, -32],
+                    });
+
+                    const marker = L.marker([lat, lon], { icon: customIcon })
+                        .bindPopup(`<strong>${device.name}</strong><br><a href="${device.url}" target="_blank">${device.url}</a><br>Status: ${device.status}`)
+                        .addTo(receiversByType['Web888'].data);
+                    
+                    receiversByType['Web888'].markers.push(marker);
+                });
+            } catch (err) {
+                console.error("Web888 Error:", err);
+            }
+        }
+
+        // ====== Initialization ======
+        async function initializeMap() {
+            document.getElementById('loading').style.display = 'block';
+            setupFilterUI();
+
+            // Add layer control for base maps
+            const overlayMaps = {
+                'KiwiSDR': receiversByType['KiwiSDR'].data,
+                'Airspy': receiversByType['Airspy'].data,
+                'WebSDR': receiversByType['WebSDR'].data,
+                'OpenWebRX': receiversByType['OpenWebRX'].data,
+                'PhantomSDR': receiversByType['PhantomSDR'].data,
+                'Web888': receiversByType['Web888'].data
+            };
+
+            L.control.layers(baseMaps, overlayMaps, { position: 'topright' }).addTo(map);
+
+            // Synchronise le contrôle des couches avec le panel de filtrage en bas à gauche
+            map.on('overlayadd', function(event) {
+                // Trouve le type correspondant à la couche ajoutée
+                Object.entries(receiversByType).forEach(([type, config]) => {
+                    if (config.data === event.layer) {
+                        const checkbox = document.getElementById(`filter-${type}`);
+                        if (checkbox) checkbox.checked = true;
+                    }
+                });
+                updateStats();
+            });
+
+            map.on('overlayremove', function(event) {
+                // Trouve le type correspondant à la couche supprimée
+                Object.entries(receiversByType).forEach(([type, config]) => {
+                    if (config.data === event.layer) {
+                        const checkbox = document.getElementById(`filter-${type}`);
+                        if (checkbox) checkbox.checked = false;
+                    }
+                });
+                updateStats();
+            });
+
+            await Promise.all([
+                loadKiwiSDR(),
+                loadAirspy(),
+                loadWebSDR(),
+                loadOpenWebRX(),
+                loadPhantomSDR(),
+                loadWeb888()
+            ]);
+
+            updateStats();
+            document.getElementById('loading').style.display = 'none';
+        }
+
+        initializeMap();
+    </script>
 </body>
 </html>
+
