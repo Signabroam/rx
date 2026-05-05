@@ -383,7 +383,7 @@
         // ====== Data Loaders ======
         async function loadKiwiSDR() {
             try {
-                const response = await fetch("https://api.codetabs.com/v1/proxy/?quest=http://kiwisdr.com/.public/");
+                const response = await fetch("https://api.codetabs.com/v1/proxy/?quest=https://www.receiverbook.de/map?type=kiwisdr&band=");
                 const html = await response.text();
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(html, "text/html");
