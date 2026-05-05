@@ -385,28 +385,15 @@
             try {
                 const response = await fetch("https://api.codetabs.com/v1/proxy/?quest=https://www.receiverbook.de/map?type=kiwisdr&band=");
                 const html = await response.text();
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(html, "text/html");
-                const entries = doc.querySelectorAll(".cl-entry");
+                const match = html.match(/var receivers = (\[.*?\]);/s);
+                if (!match) return;
 
-                entries.forEach(entry => {
-                    const htmlBlock = entry.innerHTML;
-                    const gps = /<!--\s*gps=\(([^,]+),\s*([^)]+)\)\s*-->/.exec(htmlBlock);
-                    const name = /<!--\s*name=([^\n\r]+?)\s*-->/.exec(htmlBlock);
-                    const sdr_hw = /<!--\s*sdr_hw=([^\n\r]+?)\s*-->/.exec(htmlBlock);
-                    const users = /<!--\s*users=(\d+)\s*-->/.exec(htmlBlock);
-                    const users_max = /<!--\s*users_max=(\d+)\s*-->/.exec(htmlBlock);
-                    const loc = /<!--\s*loc=([^\n\r]+?)\s*-->/.exec(htmlBlock);
-                    const antenna = /<!--\s*antenna=([^\n\r]+?)\s*-->/.exec(htmlBlock);
+                const receiversData = JSON.parse(match[1]);
 
-                    const lat = gps ? parseFloat(gps[1]) : null;
-                    const lng = gps ? parseFloat(gps[2]) : null;
-                    const urlEl = entry.querySelector("a[href^='http']");
-                    const link = urlEl ? urlEl.getAttribute("href") : null;
-                    const imgEl = entry.querySelector("img.cl-avatar");
-                    const iconUrl = imgEl ? imgEl.getAttribute("src") : null;
+                receiversData.forEach(site => {
+                    const [lon, lat] = site.location.coordinates;
 
-                    if (lat && lng && name && iconUrl) {
+                    site.receivers.forEach(receiver => {
                         const customIcon = L.icon({
                             iconUrl: 'images/kiwi.png',
                             iconSize: [32, 32],
@@ -414,20 +401,12 @@
                             popupAnchor: [0, -16],
                         });
 
-                        const popupContent = `
-                            <strong><a href="${link}" target="_blank">${name[1]}</a></strong><br>
-                            <em>${loc ? loc[1] : "?"}</em><br>
-                            Material: ${sdr_hw ? sdr_hw[1] : "?"}<br>
-                            Users: ${users ? users[1] : "?"}/${users_max ? users_max[1] : "?"}<br>
-                            Version: ${antenna ? antenna[1] : "?"}
-                        `;
-
-                        const marker = L.marker([lat, lng], { icon: customIcon })
-                            .bindPopup(popupContent)
+                        const marker = L.marker([lat, lon], { icon: customIcon })
+                            .bindPopup(`<strong>${site.label}</strong><br><a href="${receiver.url}" target="_blank">${receiver.label}</a><br>Type: ${receiver.type} ${receiver.version ? receiver.version : ''}`)
                             .addTo(receiversByType['KiwiSDR'].data);
                         
                         receiversByType['KiwiSDR'].markers.push(marker);
-                    }
+                    });
                 });
             } catch (err) {
                 console.error("KiwiSDR Error:", err);
