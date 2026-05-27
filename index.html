@@ -142,6 +142,60 @@
             background: #c82333;
         }
 
+        .filter-panel details {
+            margin-top: 16px;
+            border-radius: 10px;
+            background: #f8f9fa;
+            padding: 10px 12px;
+            box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+        }
+
+        .filter-panel summary {
+            font-weight: 700;
+            font-size: 14px;
+            cursor: pointer;
+            list-style: none;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+            outline: none;
+        }
+
+        .filter-panel summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .filter-panel summary::after {
+            content: "▼";
+            font-size: 12px;
+            color: #333;
+        }
+
+        .filter-panel details[open] summary::after {
+            content: "▲";
+        }
+
+        .filter-panel ul {
+            margin: 10px 0 0 0;
+            padding-left: 18px;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .filter-panel ul li {
+            margin-bottom: 6px;
+        }
+
+        .filter-panel ul a {
+            color: #007bff;
+            text-decoration: none;
+        }
+
+        .filter-panel ul a:hover {
+            text-decoration: underline;
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             .filter-panel {
@@ -235,6 +289,20 @@
             <button class="btn btn-all" id="selectAllBtn">All</button>
             <button class="btn btn-none" id="selectNoneBtn">None</button>
         </div>
+        <details open>
+            <summary>SDR Resource Links</summary>
+            <ul>
+                <li><a href="http://websdr.org/">WebSDR</a></li>
+                <li><a href="http://kiwisdr.com/.public/">KiwiSDR</a></li>
+                <li><a href="https://airspy.com/directory/">Airspy</a></li>
+                <li><a href="https://fms.komkon.org/OWRX/">OpenWebRX</a></li>
+                <li><a href="https://github.com/gbozo/no-sdr/blob/main/README.md">no(de)-sdr</a></li>
+                <li><a href="https://ubersdr.org/">UberSDR</a></li>
+                <li><a href="https://novasdr.com/">NovaSDR</a></li>
+                <li><a href="https://phantom.sdr-list.xyz/">PhantomSDR</a></li>
+                <li><a href="https://www.rx-888.com/">Web888</a></li>
+            </ul>
+        </details>
     </div> 
 
     <!-- Leaflet -->
@@ -265,8 +333,11 @@
             'Airspy': 'https://airspy.com/wp-content/uploads/2015/01/AirspyLogoWithoutBG.png',
             'WebSDR': 'images/veronlogo100b.gif',
             'OpenWebRX': '',  // Uses custom icons per receiver
+            'UberSDR': 'https://ubersdr.org/logo.png',
+            'NovaSDR': 'https://framerusercontent.com/images/CvTvwOrVqDaQtvsXWsKf8UJIV8Y.png?scale-down-to=512&width=1024&height=1024',
             'PhantomSDR': 'https://secure.gravatar.com/avatar/b3a433ed0710b05e0b66bb27496985f363eb52b92fdd9e28227660ae7fe8ed23?s=125&d=mm&r=g',
-            'Web888': 'images/web-888-51x60.png'
+            'Web888': 'images/web-888-51x60.png',
+            'node-sdr': 'https://raw.githubusercontent.com/gbozo/no-sdr/73fedfd3594b5cc8de2c08ee05612bd930064ea7/client/public/favicon.svg'
         };
 
         const receiversByType = {
@@ -274,6 +345,8 @@
             'Airspy': { color: '#4ECDC4', markers: [], data: L.layerGroup() },
             'WebSDR': { color: '#45B7D1', markers: [], data: L.layerGroup() },
             'OpenWebRX': { color: '#FFA07A', markers: [], data: L.layerGroup() },
+            'UberSDR': { color: '#5A55CA', markers: [], data: L.layerGroup() },
+            'NovaSDR': { color: '#FF9F1C', markers: [], data: L.layerGroup() },
             'PhantomSDR': { color: '#98D8C8', markers: [], data: L.layerGroup() },
             'Web888': { color: '#F7DC6F', markers: [], data: L.layerGroup() }
         };
@@ -527,8 +600,9 @@
 
         async function loadPhantomSDR() {
             try {
-                const response = await fetch("https://api.codetabs.com/v1/proxy/?quest=https://sdr-list.xyz/api/get_websdrs");
+                const response = await fetch("https://sdr-list.xyz/api/v1/receivers");
                 const data = await response.json();
+                const receivers = Array.isArray(data) ? data : (data.receivers || []);
 
                 function maidenheadToLatLon(locator) {
                     if (!locator || locator.length < 4) return null;
@@ -546,23 +620,51 @@
                     return [lat, lon];
                 }
 
-                data.forEach(device => {
-                    const latlon = maidenheadToLatLon(device.grid_locator);
-                    if (!latlon) return;
+                function getSoftwareType(software) {
+                    if (!software || software === 'null' || software === '') return 'PhantomSDR';
+                    if (software === 'UberSDR') return 'UberSDR';
+                    if (software === 'NovaSDR') return 'NovaSDR';
+                    if (software === 'PhantomSDR' || software === 'PhantomSDR+') return 'PhantomSDR';
+                    return 'PhantomSDR';
+                }
 
-                    const [lat, lon] = latlon;
+                receivers.forEach(device => {
+                    let lat = parseFloat(device.lat);
+                    let lon = parseFloat(device.lon);
+                    if (Number.isNaN(lat) || Number.isNaN(lon)) {
+                        const latlon = maidenheadToLatLon(device.grid_locator);
+                        if (!latlon) return;
+                        [lat, lon] = latlon;
+                    }
+
+                    const software = device.software || '';
+                    const type = getSoftwareType(software);
+                    const iconUrl = iconMappings[type] || iconMappings['PhantomSDR'];
+                    const port = parseInt(device.port, 10);
+                    const scheme = port === 443 ? 'https' : 'http';
+                    const hostAndPort = `${device.hostname}:${device.port}`;
+                    const url = `${scheme}://${hostAndPort}`;
+                    const label = device.name || hostAndPort;
+
                     const customIcon = L.icon({
-                        iconUrl: 'https://secure.gravatar.com/avatar/b3a433ed0710b05e0b66bb27496985f363eb52b92fdd9e28227660ae7fe8ed23?s=125&d=mm&r=g',
+                        iconUrl,
                         iconSize: [32, 32],
                         iconAnchor: [16, 16],
                         popupAnchor: [0, -16],
                     });
 
+                    const popupHTML = `
+                        <strong>${label}</strong><br>
+                        Software: ${software || 'PhantomSDR'}<br>
+                        <a href="${url}" target="_blank">${hostAndPort}</a><br>
+                        Grid: ${device.grid_locator || 'unknown'}
+                    `;
+
                     const marker = L.marker([lat, lon], { icon: customIcon })
-                        .bindPopup(`<strong>${device.name}</strong><br><a href="${device.url}" target="_blank">${device.url}</a><br>Grid: ${device.grid_locator}`)
-                        .addTo(receiversByType['PhantomSDR'].data);
-                    
-                    receiversByType['PhantomSDR'].markers.push(marker);
+                        .bindPopup(popupHTML)
+                        .addTo(receiversByType[type].data);
+
+                    receiversByType[type].markers.push(marker);
                 });
             } catch (err) {
                 console.error("PhantomSDR Error:", err);
@@ -610,6 +712,8 @@
                 'Airspy': receiversByType['Airspy'].data,
                 'WebSDR': receiversByType['WebSDR'].data,
                 'OpenWebRX': receiversByType['OpenWebRX'].data,
+                'UberSDR': receiversByType['UberSDR'].data,
+                'NovaSDR': receiversByType['NovaSDR'].data,
                 'PhantomSDR': receiversByType['PhantomSDR'].data,
                 'Web888': receiversByType['Web888'].data
             };
