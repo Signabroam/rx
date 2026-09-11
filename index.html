@@ -337,7 +337,8 @@
             'NovaSDR': 'https://framerusercontent.com/images/CvTvwOrVqDaQtvsXWsKf8UJIV8Y.png?scale-down-to=512&width=1024&height=1024',
             'PhantomSDR': 'https://secure.gravatar.com/avatar/b3a433ed0710b05e0b66bb27496985f363eb52b92fdd9e28227660ae7fe8ed23?s=125&d=mm&r=g',
             'Web888': 'images/web-888-51x60.png',
-            'node-sdr': 'https://raw.githubusercontent.com/gbozo/no-sdr/73fedfd3594b5cc8de2c08ee05612bd930064ea7/client/public/favicon.svg'
+            'node-sdr': 'https://raw.githubusercontent.com/gbozo/no-sdr/73fedfd3594b5cc8de2c08ee05612bd930064ea7/client/public/favicon.svg',
+            'vertexsdr': 'https://avatars.githubusercontent.com/u/164558083?s=60&v=4'
         };
 
         const receiversByType = {
@@ -348,7 +349,8 @@
             'UberSDR': { color: '#5A55CA', markers: [], data: L.layerGroup() },
             'NovaSDR': { color: '#FF9F1C', markers: [], data: L.layerGroup() },
             'PhantomSDR': { color: '#98D8C8', markers: [], data: L.layerGroup() },
-            'Web888': { color: '#F7DC6F', markers: [], data: L.layerGroup() }
+            'Web888': { color: '#F7DC6F', markers: [], data: L.layerGroup() },
+            'vertexsdr': { color: '#00cff8', markers: [], data: L.layerGroup() }
         };
 
         // Add layer groups to map
@@ -625,6 +627,7 @@
                     if (software === 'UberSDR') return 'UberSDR';
                     if (software === 'NovaSDR') return 'NovaSDR';
                     if (software === 'PhantomSDR' || software === 'PhantomSDR+') return 'PhantomSDR';
+                    if (software === 'VertexSDR') return 'vertexsdr';
                     return 'PhantomSDR';
                 }
 
