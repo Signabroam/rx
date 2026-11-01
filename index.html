@@ -301,6 +301,8 @@
                 <li><a href="https://novasdr.com/">NovaSDR</a></li>
                 <li><a href="https://phantom.sdr-list.xyz/">PhantomSDR</a></li>
                 <li><a href="https://www.rx-888.com/">Web888</a></li>
+                <li><a href="https://github.com/Steven9101/VertexSDR">VertexSDR</a></li>
+                <li><a href="https://vibesdr.net/">VibeSDR</a></li>
             </ul>
         </details>
     </div> 
@@ -322,8 +324,6 @@
         // Base maps for layer control
         const baseMaps = {
             "OpenStreetMap": osmLayer,
-            "CartoDB Light": L.tileLayer.provider('CartoDB.Positron'),
-            "CartoDB Dark": L.tileLayer.provider('CartoDB.Voyager'),
             "Satellite": L.tileLayer.provider('Esri.WorldImagery')
         };
 
@@ -337,7 +337,9 @@
             'NovaSDR': 'https://framerusercontent.com/images/CvTvwOrVqDaQtvsXWsKf8UJIV8Y.png?scale-down-to=512&width=1024&height=1024',
             'PhantomSDR': 'https://secure.gravatar.com/avatar/b3a433ed0710b05e0b66bb27496985f363eb52b92fdd9e28227660ae7fe8ed23?s=125&d=mm&r=g',
             'Web888': 'images/web-888-51x60.png',
-            'node-sdr': 'https://raw.githubusercontent.com/gbozo/no-sdr/73fedfd3594b5cc8de2c08ee05612bd930064ea7/client/public/favicon.svg'
+            'node-sdr': 'https://raw.githubusercontent.com/gbozo/no-sdr/73fedfd3594b5cc8de2c08ee05612bd930064ea7/client/public/favicon.svg',
+            'VertexSDR': 'https://avatars.githubusercontent.com/u/164558083?s=60&v=4',
+            'VibeSDR': 'https://vibesdr.net/assets/icon.png'
         };
 
         const receiversByType = {
@@ -348,7 +350,9 @@
             'UberSDR': { color: '#5A55CA', markers: [], data: L.layerGroup() },
             'NovaSDR': { color: '#FF9F1C', markers: [], data: L.layerGroup() },
             'PhantomSDR': { color: '#98D8C8', markers: [], data: L.layerGroup() },
-            'Web888': { color: '#F7DC6F', markers: [], data: L.layerGroup() }
+            'Web888': { color: '#F7DC6F', markers: [], data: L.layerGroup() },
+            'VertexSDR': { color: '#00cff8', markers: [], data: L.layerGroup() },
+            'VibeSDR': { color: '#ff00ff', markers: [], data: L.layerGroup() },
         };
 
         // Add layer groups to map
@@ -625,6 +629,8 @@
                     if (software === 'UberSDR') return 'UberSDR';
                     if (software === 'NovaSDR') return 'NovaSDR';
                     if (software === 'PhantomSDR' || software === 'PhantomSDR+') return 'PhantomSDR';
+                    if (software === 'VertexSDR') return 'VertexSDR';
+                    if (software === 'VibeSDR') return 'VibeSDR';
                     return 'PhantomSDR';
                 }
 
@@ -701,6 +707,64 @@
             }
         }
 
+        async function loadVibeSDR() {
+            try {
+                const response = await fetch("https://vibeserver.vibesdr.net/api/directory");
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+                const data = await response.json();
+                (data.servers || []).forEach(server => {
+                    const lat = Number(server.lat);
+                    const lon = Number(server.lon);
+                    if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) return;
+
+                    let serverUrl;
+                    try {
+                        serverUrl = new URL(server.url);
+                    } catch {
+                        return;
+                    }
+                    if (!['http:', 'https:'].includes(serverUrl.protocol)) return;
+
+                    const popup = document.createElement('div');
+                    const title = document.createElement('strong');
+                    title.textContent = server.name || 'VibeSDR';
+                    popup.appendChild(title);
+                    popup.appendChild(document.createElement('br'));
+
+                    const link = document.createElement('a');
+                    link.href = serverUrl.href;
+                    link.target = '_blank';
+                    link.rel = 'noopener noreferrer';
+                    link.textContent = server.address || serverUrl.host;
+                    popup.appendChild(link);
+
+                    const radioNames = (server.radios || []).map(radio => radio.name).filter(Boolean);
+                    if (radioNames.length) {
+                        popup.appendChild(document.createElement('br'));
+                        popup.appendChild(document.createTextNode(`Radios: ${radioNames.join(', ')}`));
+                    }
+                    if (server.antenna) {
+                        popup.appendChild(document.createElement('br'));
+                        popup.appendChild(document.createTextNode(`Antenna: ${server.antenna}`));
+                    }
+
+                    const marker = L.marker([lat, lon], {
+                        icon: L.icon({
+                            iconUrl: iconMappings['VibeSDR'],
+                            iconSize: [32, 32],
+                            iconAnchor: [16, 16],
+                            popupAnchor: [0, -16],
+                        }),
+                    }).bindPopup(popup).addTo(receiversByType['VibeSDR'].data);
+
+                    receiversByType['VibeSDR'].markers.push(marker);
+                });
+            } catch (err) {
+                console.error('VibeSDR Error:', err);
+            }
+        }
+
         // ====== Initialization ======
         async function initializeMap() {
             document.getElementById('loading').style.display = 'block';
@@ -715,7 +779,9 @@
                 'UberSDR': receiversByType['UberSDR'].data,
                 'NovaSDR': receiversByType['NovaSDR'].data,
                 'PhantomSDR': receiversByType['PhantomSDR'].data,
-                'Web888': receiversByType['Web888'].data
+                'Web888': receiversByType['Web888'].data,
+                'VertexSDR': receiversByType['VertexSDR'].data,
+                'VibeSDR': receiversByType['VibeSDR'].data,
             };
 
             L.control.layers(baseMaps, overlayMaps, { position: 'topright' }).addTo(map);
@@ -749,7 +815,8 @@
                 loadWebSDR(),
                 loadOpenWebRX(),
                 loadPhantomSDR(),
-                loadWeb888()
+                loadWeb888(),
+                loadVibeSDR()
             ]);
 
             updateStats();
@@ -760,4 +827,3 @@
     </script>
 </body>
 </html>
-
